@@ -7,7 +7,12 @@ const tradesRouter = require('./routes/trades');
 const app = express();
 const PORT = process.env.PORT || 5001;
 
-app.use(cors());
+app.use(cors({
+  origin: [
+    'http://localhost:3000',
+    'https://cadence-eight-gilt.vercel.app'
+  ]
+}));
 app.use(express.json());
 
 app.get('/', async (req, res) => {
