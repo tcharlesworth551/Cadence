@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 require('dotenv').config();
 const pool = require('./db');
+const tradesRouter = require('./routes/trades');
 
 const app = express();
 const PORT = process.env.PORT || 5001;
@@ -24,6 +25,8 @@ app.get('/', async (req, res) => {
     });
   }
 });
+
+app.use('/api/trades', tradesRouter);
 
 app.listen(PORT, () => {
   console.log(`Cadence backend running on port ${PORT}`);
