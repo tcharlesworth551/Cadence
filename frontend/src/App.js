@@ -3,7 +3,7 @@ import './App.css';
 import { supabase } from './supabase';
 import Auth from './Auth';
 
-const API = 'http://localhost:5001';
+const API = 'https://cadence-production-eb9c.up.railway.app';
 
 const EMOTIONS = [
   { value: 'disciplined', label: '🧘 Disciplined' },
