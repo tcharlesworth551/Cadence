@@ -1,8 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
+import { supabase } from './supabase';
+import Auth from './Auth';
 
-// Temporary test user ID - replace with real auth later
-const TEST_USER_ID = '82ffa2e4-79e7-4041-b8e1-3d0795903d4f';
 const API = 'http://localhost:5001';
 
 const EMOTIONS = [
@@ -29,6 +29,8 @@ function formatTime(dateString) {
 }
 
 export default function App() {
+  const [session, setSession] = useState(null);
+  const [authLoading, setAuthLoading] = useState(true);
   const [trades, setTrades] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -36,18 +38,30 @@ export default function App() {
   const [success, setSuccess] = useState(false);
   const [activeTab, setActiveTab] = useState('log');
 
-  // Form state
   const [pair, setPair] = useState('EUR/USD');
   const [direction, setDirection] = useState('');
   const [outcome, setOutcome] = useState('');
   const [emotion, setEmotion] = useState('');
   const [notes, setNotes] = useState('');
 
+  // Auth state listener
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setSession(session);
+      setAuthLoading(false);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+      setSession(session);
+    });
+    return () => subscription.unsubscribe();
+  }, []);
+
   const fetchData = useCallback(async () => {
+    if (!session) return;
     try {
       const [tradesRes, statsRes] = await Promise.all([
-        fetch(`${API}/api/trades/${TEST_USER_ID}`),
-        fetch(`${API}/api/trades/${TEST_USER_ID}/stats`)
+        fetch(`${API}/api/trades/${session.user.id}`),
+        fetch(`${API}/api/trades/${session.user.id}/stats`)
       ]);
       const tradesData = await tradesRes.json();
       const statsData = await statsRes.json();
@@ -58,11 +72,11 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [session]);
 
   useEffect(() => {
-    fetchData();
-  }, [fetchData]);
+    if (session) fetchData();
+  }, [session, fetchData]);
 
   const handleSubmit = async () => {
     if (!direction || !outcome || !emotion) return;
@@ -72,7 +86,7 @@ export default function App() {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          user_id: TEST_USER_ID,
+          user_id: session.user.id,
           pair,
           direction,
           outcome,
@@ -96,21 +110,48 @@ export default function App() {
   };
 
   const winRate = stats ? parseFloat(stats.win_rate) || 0 : 0;
-  const streak = trades.filter((t, i) => {
-    if (i === 0) return t.outcome === 'win';
-    return trades[i - 1]?.outcome === 'win' && t.outcome === 'win';
-  }).length;
+  const streak = trades.reduce((acc, trade, i) => {
+    if (i === 0 && trade.outcome === 'win') return 1;
+    if (trade.outcome === 'win' && trades[i-1]?.outcome === 'win') return acc + 1;
+    return acc;
+  }, 0);
 
+  // Loading screen
+  if (authLoading) return (
+    <div style={{
+      minHeight: '100vh', background: '#0a0a0a',
+      display: 'flex', alignItems: 'center', justifyContent: 'center',
+      color: '#666', fontFamily: 'JetBrains Mono, monospace', fontSize: '13px'
+    }}>
+      loading cadence...
+    </div>
+  );
+
+  // Auth screen
+  if (!session) return <Auth />;
+
+  // Main app
   return (
     <div className="app">
+
       {/* Header */}
       <div className="header">
         <div className="logo">cadence<span>.</span></div>
-        {streak > 0 && (
-          <div className="streak-badge">
-            🔥 {streak} streak
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          {streak > 0 && (
+            <div className="streak-badge">🔥 {streak} streak</div>
+          )}
+          <button
+            onClick={() => supabase.auth.signOut()}
+            style={{
+              background: 'none', border: '1px solid #222', borderRadius: '20px',
+              padding: '6px 12px', color: '#666', fontFamily: 'var(--font-ui)',
+              fontSize: '12px', cursor: 'pointer'
+            }}
+          >
+            Sign out
+          </button>
+        </div>
       </div>
 
       {/* Stats */}
@@ -129,7 +170,7 @@ export default function App() {
         </div>
         <div className="stat-card">
           <div className="stat-value">
-            {loading ? '—' : stats?.wins || 0}W / {loading ? '—' : stats?.losses || 0}L
+            {loading ? '—' : `${stats?.wins || 0}W / ${stats?.losses || 0}L`}
           </div>
           <div className="stat-label">W / L</div>
         </div>
@@ -142,17 +183,12 @@ export default function App() {
             key={tab}
             onClick={() => setActiveTab(tab)}
             style={{
-              background: 'none',
-              border: 'none',
+              background: 'none', border: 'none',
               borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
               padding: '14px',
               color: activeTab === tab ? 'var(--accent)' : 'var(--text-dim)',
-              fontFamily: 'var(--font-ui)',
-              fontSize: '13px',
-              fontWeight: '600',
-              textTransform: 'uppercase',
-              letterSpacing: '0.08em',
-              cursor: 'pointer',
+              fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: '600',
+              textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer',
               transition: 'all 0.15s'
             }}
           >
@@ -171,7 +207,6 @@ export default function App() {
           )}
           <div className="log-form">
 
-            {/* Pair */}
             <div>
               <div className="field-label">Pair</div>
               <select className="field-input" value={pair} onChange={e => setPair(e.target.value)}>
@@ -179,51 +214,23 @@ export default function App() {
               </select>
             </div>
 
-            {/* Direction */}
             <div>
               <div className="field-label">Direction</div>
               <div className="toggle-group cols-2">
-                <button
-                  className={`toggle-btn ${direction === 'long' ? 'active-win' : ''}`}
-                  onClick={() => setDirection('long')}
-                >
-                  ↑ Long
-                </button>
-                <button
-                  className={`toggle-btn ${direction === 'short' ? 'active-loss' : ''}`}
-                  onClick={() => setDirection('short')}
-                >
-                  ↓ Short
-                </button>
+                <button className={`toggle-btn ${direction === 'long' ? 'active-win' : ''}`} onClick={() => setDirection('long')}>↑ Long</button>
+                <button className={`toggle-btn ${direction === 'short' ? 'active-loss' : ''}`} onClick={() => setDirection('short')}>↓ Short</button>
               </div>
             </div>
 
-            {/* Outcome */}
             <div>
               <div className="field-label">Outcome</div>
               <div className="toggle-group cols-3">
-                <button
-                  className={`toggle-btn ${outcome === 'win' ? 'active-win' : ''}`}
-                  onClick={() => setOutcome('win')}
-                >
-                  Win
-                </button>
-                <button
-                  className={`toggle-btn ${outcome === 'loss' ? 'active-loss' : ''}`}
-                  onClick={() => setOutcome('loss')}
-                >
-                  Loss
-                </button>
-                <button
-                  className={`toggle-btn ${outcome === 'breakeven' ? 'active-accent' : ''}`}
-                  onClick={() => setOutcome('breakeven')}
-                >
-                  B/E
-                </button>
+                <button className={`toggle-btn ${outcome === 'win' ? 'active-win' : ''}`} onClick={() => setOutcome('win')}>Win</button>
+                <button className={`toggle-btn ${outcome === 'loss' ? 'active-loss' : ''}`} onClick={() => setOutcome('loss')}>Loss</button>
+                <button className={`toggle-btn ${outcome === 'breakeven' ? 'active-accent' : ''}`} onClick={() => setOutcome('breakeven')}>B/E</button>
               </div>
             </div>
 
-            {/* Emotion */}
             <div>
               <div className="field-label">How did you feel?</div>
               <div className="emotion-grid">
@@ -239,7 +246,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Notes */}
             <div>
               <div className="field-label">Notes (optional)</div>
               <textarea
@@ -297,6 +303,7 @@ export default function App() {
           )}
         </div>
       )}
+
     </div>
   );
 }
