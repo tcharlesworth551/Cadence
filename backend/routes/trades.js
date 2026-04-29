@@ -60,5 +60,28 @@ router.get('/:user_id/stats', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+// Get emotion insights for a user
+router.get('/:user_id/insights', async (req, res) => {
+  const { user_id } = req.params;
 
+  try {
+    const result = await pool.query(
+      `SELECT 
+        emotion,
+        COUNT(*) as total,
+        SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) as wins,
+        ROUND(
+          SUM(CASE WHEN outcome = 'win' THEN 1 ELSE 0 END) * 100.0 / COUNT(*), 1
+        ) as win_rate
+       FROM trades
+       WHERE user_id = $1
+       GROUP BY emotion
+       ORDER BY win_rate DESC`,
+      [user_id]
+    );
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 module.exports = router;

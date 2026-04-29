@@ -36,6 +36,7 @@ export default function App() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [success, setSuccess] = useState(false);
+  const [insights, setInsights] = useState([]);
   const [activeTab, setActiveTab] = useState('log');
 
   const [pair, setPair] = useState('EUR/USD');
@@ -59,14 +60,17 @@ export default function App() {
   const fetchData = useCallback(async () => {
     if (!session) return;
     try {
-      const [tradesRes, statsRes] = await Promise.all([
+      const [tradesRes, statsRes, insightsRes] = await Promise.all([
         fetch(`${API}/api/trades/${session.user.id}`),
-        fetch(`${API}/api/trades/${session.user.id}/stats`)
+        fetch(`${API}/api/trades/${session.user.id}/stats`),
+        fetch(`${API}/api/trades/${session.user.id}/insights`)
       ]);
       const tradesData = await tradesRes.json();
       const statsData = await statsRes.json();
+      const insightsData = await insightsRes.json();
       setTrades(tradesData);
       setStats(statsData);
+      setInsights(insightsData);
     } catch (err) {
       console.error('Failed to fetch data:', err);
     } finally {
@@ -177,25 +181,25 @@ export default function App() {
       </div>
 
       {/* Tabs */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', borderBottom: '1px solid var(--border)' }}>
-        {['log', 'history'].map(tab => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              background: 'none', border: 'none',
-              borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
-              padding: '14px',
-              color: activeTab === tab ? 'var(--accent)' : 'var(--text-dim)',
-              fontFamily: 'var(--font-ui)', fontSize: '13px', fontWeight: '600',
-              textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer',
-              transition: 'all 0.15s'
-            }}
-          >
-            {tab === 'log' ? '+ Log Trade' : `History (${trades.length})`}
-          </button>
-        ))}
-      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', borderBottom: '1px solid var(--border)' }}>
+  {['log', 'history', 'insights'].map(tab => (
+    <button
+      key={tab}
+      onClick={() => setActiveTab(tab)}
+      style={{
+        background: 'none', border: 'none',
+        borderBottom: activeTab === tab ? '2px solid var(--accent)' : '2px solid transparent',
+        padding: '14px 8px',
+        color: activeTab === tab ? 'var(--accent)' : 'var(--text-dim)',
+        fontFamily: 'var(--font-ui)', fontSize: '12px', fontWeight: '600',
+        textTransform: 'uppercase', letterSpacing: '0.08em', cursor: 'pointer',
+        transition: 'all 0.15s'
+      }}
+    >
+      {tab === 'log' ? '+ Log' : tab === 'history' ? `History (${trades.length})` : '📊 Insights'}
+    </button>
+  ))}
+</div>
 
       {/* Log Trade Tab */}
       {activeTab === 'log' && (
@@ -303,7 +307,62 @@ export default function App() {
           )}
         </div>
       )}
-
+    {/* Insights Tab */}
+{activeTab === 'insights' && (
+  <div className="section">
+    <div className="section-title">Emotion Performance</div>
+    {insights.length === 0 ? (
+      <div className="empty-state">
+        <span>📊</span>
+        Log at least 5 trades to unlock your emotion insights.
+      </div>
+    ) : (
+      <div className="trade-list">
+        {insights.map(insight => (
+          <div key={insight.emotion} style={{
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border)',
+            borderRadius: '10px',
+            padding: '16px',
+            marginBottom: '2px'
+          }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+              <div style={{ fontSize: '14px', fontWeight: '500', textTransform: 'capitalize', color: 'var(--text)' }}>
+                {insight.emotion}
+              </div>
+              <div style={{
+                fontFamily: 'var(--font-data)',
+                fontSize: '18px',
+                fontWeight: '500',
+                color: parseFloat(insight.win_rate) >= 50 ? 'var(--win)' : 'var(--loss)'
+              }}>
+                {insight.win_rate}%
+              </div>
+            </div>
+            {/* Progress bar */}
+            <div style={{ background: 'var(--bg-input)', borderRadius: '4px', height: '4px', overflow: 'hidden' }}>
+              <div style={{
+                height: '100%',
+                width: `${insight.win_rate}%`,
+                background: parseFloat(insight.win_rate) >= 50 ? 'var(--win)' : 'var(--loss)',
+                borderRadius: '4px',
+                transition: 'width 0.6s ease'
+              }} />
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '8px' }}>
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-data)' }}>
+                {insight.total} trades
+              </span>
+              <span style={{ fontSize: '12px', color: 'var(--text-dim)', fontFamily: 'var(--font-data)' }}>
+                {insight.wins}W / {insight.total - insight.wins}L
+              </span>
+            </div>
+          </div>
+        ))}
+      </div>
+    )}
+  </div>
+)}
     </div>
   );
 }
