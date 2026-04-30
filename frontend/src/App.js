@@ -109,7 +109,7 @@ export default function App() {
       setNotes('');
       setScreenshot(null);
       setScreenshotPreview(null);
-      fetchData();
+      setTimeout(() => fetchData(), 500);
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
       console.error('Failed to log trade:', err);
