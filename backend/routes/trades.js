@@ -1,12 +1,21 @@
 const express = require('express');
 const router = express.Router();
 const pool = require('../db');
+const { upload, uploadToS3 } = require('../upload');
 
 // Log a new trade
-router.post('/', async (req, res) => {
-  const { user_id, pair, direction, outcome, emotion, screenshot_url, notes } = req.body;
+router.post('/', upload.single('screenshot'), async (req, res) => {
+  console.log('Body:', req.body);
+  console.log('File:', req.file ? req.file.originalname : 'no file');
+  
+  const { user_id, pair, direction, outcome, emotion, notes } = req.body;
 
   try {
+    let screenshot_url = null;
+    if (req.file) {
+      screenshot_url = await uploadToS3(req.file);
+    }
+
     const result = await pool.query(
       `INSERT INTO trades 
         (user_id, pair, direction, outcome, emotion, screenshot_url, notes) 
@@ -16,6 +25,7 @@ router.post('/', async (req, res) => {
     );
     res.status(201).json(result.rows[0]);
   } catch (err) {
+    console.log('Error:', err.message);
     res.status(500).json({ error: err.message });
   }
 });
@@ -23,7 +33,6 @@ router.post('/', async (req, res) => {
 // Get all trades for a user
 router.get('/:user_id', async (req, res) => {
   const { user_id } = req.params;
-
   try {
     const result = await pool.query(
       `SELECT * FROM trades 
@@ -37,10 +46,9 @@ router.get('/:user_id', async (req, res) => {
   }
 });
 
-// Get trade stats for a user
+// Get stats for a user
 router.get('/:user_id/stats', async (req, res) => {
   const { user_id } = req.params;
-
   try {
     const result = await pool.query(
       `SELECT 
@@ -60,10 +68,10 @@ router.get('/:user_id/stats', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 // Get emotion insights for a user
 router.get('/:user_id/insights', async (req, res) => {
   const { user_id } = req.params;
-
   try {
     const result = await pool.query(
       `SELECT 
@@ -84,4 +92,5 @@ router.get('/:user_id/insights', async (req, res) => {
     res.status(500).json({ error: err.message });
   }
 });
+
 module.exports = router;

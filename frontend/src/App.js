@@ -3,7 +3,7 @@ import './App.css';
 import { supabase } from './supabase';
 import Auth from './Auth';
 
-const API = 'https://cadence-production-eb9c.up.railway.app';
+const API = process.env.REACT_APP_API_URL || 'http://localhost:5001';
 
 const EMOTIONS = [
   { value: 'disciplined', label: '🧘 Disciplined' },
@@ -44,6 +44,8 @@ export default function App() {
   const [outcome, setOutcome] = useState('');
   const [emotion, setEmotion] = useState('');
   const [notes, setNotes] = useState('');
+  const [screenshot, setScreenshot] = useState(null);
+  const [screenshotPreview, setScreenshotPreview] = useState(null);
 
   // Auth state listener
   useEffect(() => {
@@ -86,24 +88,27 @@ export default function App() {
     if (!direction || !outcome || !emotion) return;
     setSubmitting(true);
     try {
+      const formData = new FormData();
+      formData.append('user_id', session.user.id);
+      formData.append('pair', pair);
+      formData.append('direction', direction);
+      formData.append('outcome', outcome);
+      formData.append('emotion', emotion);
+      if (notes) formData.append('notes', notes);
+      if (screenshot) formData.append('screenshot', screenshot);
+
       await fetch(`${API}/api/trades`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: session.user.id,
-          pair,
-          direction,
-          outcome,
-          emotion,
-          screenshot_url: null,
-          notes: notes || null
-        })
+        body: formData
       });
+
       setSuccess(true);
       setDirection('');
       setOutcome('');
       setEmotion('');
       setNotes('');
+      setScreenshot(null);
+      setScreenshotPreview(null);
       fetchData();
       setTimeout(() => setSuccess(false), 3000);
     } catch (err) {
@@ -260,6 +265,59 @@ export default function App() {
               />
             </div>
 
+<div>
+  <div className="field-label">Screenshot (optional)</div>
+  <label style={{
+    display: 'block',
+    background: 'var(--bg-input)',
+    border: '1px dashed var(--border)',
+    borderRadius: '8px',
+    padding: '20px',
+    textAlign: 'center',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s'
+  }}
+  onMouseOver={e => e.currentTarget.style.borderColor = 'var(--accent)'}
+  onMouseOut={e => e.currentTarget.style.borderColor = 'var(--border)'}
+  >
+    <input
+      type="file"
+      accept="image/*"
+      style={{ display: 'none' }}
+      onChange={e => {
+        const file = e.target.files[0];
+        if (file) {
+          setScreenshot(file);
+          setScreenshotPreview(URL.createObjectURL(file));
+        }
+      }}
+    />
+    {screenshotPreview ? (
+      <img
+        src={screenshotPreview}
+        alt="Screenshot preview"
+        style={{ width: '100%', borderRadius: '6px', maxHeight: '200px', objectFit: 'cover' }}
+      />
+    ) : (
+      <div style={{ color: 'var(--text-dim)', fontSize: '13px' }}>
+        <div style={{ fontSize: '24px', marginBottom: '8px' }}>📸</div>
+        Tap to attach your chart screenshot
+      </div>
+    )}
+  </label>
+  {screenshotPreview && (
+    <button
+      onClick={() => { setScreenshot(null); setScreenshotPreview(null); }}
+      style={{
+        background: 'none', border: 'none', color: 'var(--text-dim)',
+        fontSize: '12px', cursor: 'pointer', marginTop: '6px'
+      }}
+    >
+      Remove screenshot
+    </button>
+  )}
+</div>
+
             <button
               className="submit-btn"
               onClick={handleSubmit}
@@ -300,6 +358,16 @@ export default function App() {
                       {trade.outcome === 'breakeven' ? 'B/E' : trade.outcome}
                     </span>
                     <div className="trade-time">{formatTime(trade.created_at)}</div>
+                    {trade.screenshot_url && (
+  <div style={{ gridColumn: '1 / -1', marginTop: '10px' }}>
+    <img
+      src={trade.screenshot_url}
+      alt="Trade screenshot"
+      style={{ width: '100%', borderRadius: '6px', maxHeight: '180px', objectFit: 'cover', cursor: 'pointer' }}
+      onClick={() => window.open(trade.screenshot_url, '_blank')}
+    />
+  </div>
+)}
                   </div>
                 </div>
               ))}
