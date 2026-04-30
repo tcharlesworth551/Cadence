@@ -1,3 +1,4 @@
+import Landing from './Landing';
 import { useState, useEffect, useCallback } from 'react';
 import './App.css';
 import { supabase } from './supabase';
@@ -28,7 +29,7 @@ function formatTime(dateString) {
   });
 }
 
-export default function App() {
+  export default function App() {
   const [session, setSession] = useState(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [trades, setTrades] = useState([]);
@@ -46,6 +47,8 @@ export default function App() {
   const [notes, setNotes] = useState('');
   const [screenshot, setScreenshot] = useState(null);
   const [screenshotPreview, setScreenshotPreview] = useState(null);
+  const [showLanding, setShowLanding] = useState(true);
+  
 
   // Auth state listener
   useEffect(() => {
@@ -136,8 +139,9 @@ export default function App() {
     </div>
   );
 
-  // Auth screen
-  if (!session) return <Auth />;
+  // Landing + Auth screen
+if (!session && showLanding) return <Landing onGetStarted={() => setShowLanding(false)} />;
+if (!session) return <Auth />;
 
   // Main app
   return (
